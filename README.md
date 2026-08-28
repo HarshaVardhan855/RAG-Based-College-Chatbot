@@ -1,143 +1,536 @@
-# RAG-Based College Chatbot
+# 🎓 RAG-Based College Chatbot
 
-Production-quality, full-stack **RAG-Based College Chatbot** designed to answer student questions strictly using official college documents uploaded by administrators.
+<div align="center">
 
-Built strictly according to specifications in [`spec.md-file`](file:///c:/Users/Harsha%20Vardhan/RAG-BOT/spec.md-file).
+[![Python](https://img.shields.io/badge/Python-3.11+-3776ab?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20DB-green)](https://www.trychroma.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
----
+**An AI-powered college information assistant that uses Retrieval-Augmented Generation (RAG) to provide accurate, source-backed answers from official college documents.**
 
-## Key Features
+[Features](#-features) • [Architecture](#-architecture) • [Setup](#-setup) • [Usage](#-usage) • [API](#-api)
 
-- **Genuine RAG Architecture**: Document Extraction → Cleaning → Recursive Chunking → Vector Embeddings → Similarity Search → Grounded LLM Answer + Sources.
-- **Zero Hallucination Guard**: Strict system prompt and similarity threshold filtering. Out-of-scope questions return explicit: *"I couldn't find this information in the college knowledge base."*
-- **Role-Based System**:
-  - **Student View**: Interactive chat UI with conversation history, sample questions, and clickable source reference badges (Document Name, Page, Section).
-  - **Admin Dashboard**: Document upload (PDF, DOCX, TXT), searchable document table, re-processing, cascading deletion, and knowledge base analytics.
-- **Technology Stack**:
-  - **Backend**: Python 3.11, FastAPI, Uvicorn, Pydantic, SQLAlchemy
-  - **Database & Vectors**: SQLite (application data) + ChromaDB / Cosine Similarity Vector Index
-  - **Embeddings & LLM**: Google Gemini API (`text-embedding-004` & `gemini-2.0-flash`) via `google.genai` SDK with offline fallback
-  - **Document Processors**: PyMuPDF (`fitz`), `python-docx`, plain text processor
-  - **Frontend**: Modern glassmorphism UI with dark/light themes, responsive layout, and async REST API integration.
+</div>
 
 ---
 
-## Directory Structure
+## 🌟 Features
+
+- ✅ **Genuine RAG Architecture**: Document extraction → cleaning → semantic chunking → vector embeddings → similarity search → grounded LLM responses
+- 🔒 **Zero Hallucination Guard**: Strict system prompts and similarity threshold filtering prevent false answers
+- 👥 **Dual Role System**:
+  - 🎓 **Student Interface**: Chat with AI, view conversation history, click source citations
+  - 👨‍💼 **Admin Dashboard**: Upload documents, manage knowledge base, analytics & insights
+- 🤖 **Intelligent Retrieval**: Google Gemini embeddings with Grok fallback
+- 📄 **Multi-Format Support**: PDF, DOCX, TXT documents
+- 🔐 **Authentication**: JWT-based auth with role-based access control
+- 🌓 **Dark/Light Theme**: Modern glassmorphism UI
+- 💾 **Persistent Storage**: SQLite + ChromaDB vector database
+
+---
+
+## 📐 System Architecture
+
+### **High-Level System Overview**
 
 ```
-college-rag-chatbot/
-├── config.py                 # App configuration & settings
-├── main.py                   # FastAPI server & route handlers
-├── requirements.txt           # Python dependencies
-├── .env.example              # Environment variables template
-├── .gitignore                # Git ignore rules
-├── README.md                 # Project documentation
+┌─────────────────────────────────────────────────────────────────┐
+│                      USER INTERFACE LAYER                       │
+│  ┌──────────────────┐                    ┌──────────────────┐   │
+│  │  Student Chat UI │                    │ Admin Dashboard  │   │
+│  │  - Ask Questions │                    │ - Upload Docs    │   │
+│  │  - View History  │                    │ - Manage Docs    │   │
+│  │  - Click Sources │                    │ - View Analytics │   │
+│  └────────┬─────────┘                    └────────┬─────────┘   │
+└───────────┼────────────────────────────────────────┼─────────────┘
+            │                                        │
+            │         REST API (FastAPI)            │
+            │                                        │
+┌───────────┼────────────────────────────────────────┼─────────────┐
+│           │           APPLICATION LAYER           │             │
+│  ┌────────▼──────────┐                  ┌─────────▼──────────┐  │
+│  │ Chat Service      │                  │ Document Service   │  │
+│  │ - Query Handling  │                  │ - File Upload      │  │
+│  │ - Response Format │                  │ - Processing       │  │
+│  └────────┬──────────┘                  │ - Deletion         │  │
+│           │                             └─────────┬──────────┘  │
+│  ┌────────▼──────────────────────────────────────▼──────────┐   │
+│  │              RAG PIPELINE LAYER                          │   │
+│  │  ┌─────────────┐  ┌──────────┐  ┌─────────────────────┐ │   │
+│  │  │ Text Cleaner│→ │ Chunker  │→ │ Embeddings Service  │ │   │
+│  │  └─────────────┘  └──────────┘  └─────────────────────┘ │   │
+│  │           ↓                                   ↓          │   │
+│  │  ┌─────────────────────────────────────────────────────┐ │   │
+│  │  │ Retriever: Vector Search + Similarity Filtering     │ │   │
+│  │  └──────────────────────────┬────────────────────────── ┘ │   │
+│  │                             ↓                            │   │
+│  │  ┌──────────────────────────────────────────────────────┐ │   │
+│  │  │ LLM Prompt Engine (Anti-Hallucination Grounding)     │ │   │
+│  │  └──────────────────────────────────────────────────────┘ │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ Authentication & Authorization Layer (JWT + Roles)     │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────┘
+            │                                        │
+            │      DATABASE & VECTOR STORE          │
+            │                                        │
+┌───────────┼────────────────────────────────────────┼─────────────┐
+│           │                                        │             │
+│  ┌────────▼──────────────┐        ┌───────────────▼──────────┐  │
+│  │ SQLite Database       │        │ ChromaDB Vector Store    │  │
+│  │ - User accounts       │        │ - Document embeddings    │  │
+│  │ - Documents metadata  │        │ - Chunk vectors          │  │
+│  │ - Chat history        │        │ - Similarity indexing    │  │
+│  └───────────────────────┘        └──────────────────────────┘  │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 User Journey & Workflow
+
+### **Admin Upload & Processing Flow**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ADMIN UPLOADS DOCUMENT                        │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Document Validation │
+                    │ (Format check)      │
+                    └──────────┬──────────┘
+                               │
+                ┌──────────────┼──────────────┐
+                │              │              │
+                ▼              ▼              ▼
+            ┌────────┐    ┌────────┐    ┌────────┐
+            │  PDF   │    │ DOCX   │    │  TXT   │
+            │Extract │    │Extract │    │Extract │
+            └───┬────┘    └───┬────┘    └───┬────┘
+                │              │              │
+                └──────────────┼──────────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Text Cleaning      │
+                    │ - Remove extra      │
+                    │   whitespace        │
+                    │ - Normalize text    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Recursive Chunking  │
+                    │ - Chunk Size: 500   │
+                    │ - Overlap: 100      │
+                    │ - Preserve metadata │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Generate Embeddings│
+                    │  Gemini API         │
+                    │  (w/ Fallback)      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Store in ChromaDB   │
+                    │ Vector Index        │
+                    │ + SQLite Metadata   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ ✅ Ready for Queries│
+                    └─────────────────────┘
+```
+
+### **Student Query & Response Flow**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              STUDENT TYPES QUESTION IN CHAT                      │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ 1. Generate Query   │
+                    │    Embedding        │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ 2. Vector Search    │
+                    │    ChromaDB         │
+                    │    (Top-K: 4 docs)  │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ 3. Similarity Check │
+                    │ Threshold: 0.30     │
+                    └──────┬──────────────┘
+                           │
+            ┌──────────────┼──────────────┐
+            │              │              │
+     Score ≥ 0.30   Score < 0.30      │
+            │              │              │
+            ▼              ▼              │
+      ┌──────────┐  ┌────────────┐       │
+      │ Retrieve │  │ Return Out  │       │
+      │ Relevant │  │ of Scope    │       │
+      │ Chunks   │  │ Message:    │       │
+      │with      │  │ "I couldn't │       │
+      │sources   │  │ find..."    │       │
+      └────┬─────┘  └────┬───────┘       │
+           │             │               │
+           └──────┬──────┘               │
+                  │                      │
+                  ▼                      │
+     ┌─────────────────────┐             │
+     │ Build Context for   │             │
+     │ LLM Prompt:         │             │
+     │ - System Prompt     │             │
+     │ - Retrieved Chunks  │             │
+     │ - User Question     │             │
+     └──────────┬──────────┘             │
+                │                        │
+                ▼                        │
+     ┌─────────────────────┐             │
+     │ Call Gemini API     │             │
+     │ Generate Response   │             │
+     │ with grounding      │             │
+     └──────────┬──────────┘             │
+                │                        │
+                └────────┬───────────────┘
+                         │
+                         ▼
+                    ┌────────────────────┐
+                    │ 4. Format Response │
+                    │ + Source Citations │
+                    │ (Doc, Page, Link)  │
+                    └──────────┬─────────┘
+                               │
+                               ▼
+                    ┌────────────────────┐
+                    │ 5. Send to Student │
+                    │ Display with       │
+                    │ clickable sources  │
+                    └────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```
+RAG-Based-College-Chatbot/
 │
-├── auth/
-│   ├── authentication.py     # Password hashing & JWT token issuing
-│   └── authorization.py      # Dependency guards for Student & Admin roles
+├── 📄 main.py                          # FastAPI application entry point
+├── 📄 config.py                        # Configuration & environment settings
+├── 📄 requirements.txt                 # Python dependencies
+├── 📄 .env.example                     # Environment variables template
+├── 📄 .gitignore                       # Git ignore rules
+├── 📄 README.md                        # This file
 │
-├── database/
-│   ├── connection.py         # SQLite engine & session management
-│   ├── models.py             # User, Document, Chunk, ChatSession, ChatMessage ORM models
-│   └── repository.py         # Database CRUD queries
+├── 🔐 auth/
+│   ├── authentication.py               # Password hashing & JWT tokens
+│   └── authorization.py                # Role-based access control
 │
-├── documents/
-│   ├── pdf_processor.py      # PDF text & page extraction (PyMuPDF)
-│   ├── docx_processor.py     # DOCX paragraph extraction (python-docx)
-│   └── txt_processor.py      # Plain text file processor
+├── 💾 database/
+│   ├── connection.py                   # SQLite session management
+│   ├── models.py                       # ORM models (User, Document, Chat, etc.)
+│   └── repository.py                   # Database CRUD operations
 │
-├── rag/
-│   ├── text_cleaner.py       # Whitespace & newline normalization
-│   ├── chunker.py            # Recursive character chunking preserving metadata
-│   ├── embeddings.py         # Gemini text-embedding-004 service with fallback
-│   ├── vector_store.py       # ChromaDB vector store & similarity search
-│   ├── retriever.py          # Top-K relevance retrieval & threshold filtering
-│   ├── prompt.py             # Strict anti-hallucination grounded system prompt
-│   └── pipeline.py           # End-to-end RAG workflow orchestrator
+├── 📄 documents/
+│   ├── pdf_processor.py                # PDF extraction using PyMuPDF
+│   ├── docx_processor.py               # DOCX extraction using python-docx
+│   └── txt_processor.py                # Plain text file processor
 │
-├── services/
-│   ├── user_service.py       # User auth & admin seeding
-│   ├── document_service.py   # Upload, chunking, vector storage, delete, reprocess
-│   └── chat_service.py       # Chat sessions, query execution, & sources formatting
+├── 🧠 rag/
+│   ├── text_cleaner.py                 # Text normalization
+│   ├── chunker.py                      # Recursive character chunking
+│   ├── embeddings.py                   # Gemini embeddings service
+│   ├── vector_store.py                 # ChromaDB integration
+│   ├── retriever.py                    # Semantic search & filtering
+│   ├── prompt.py                       # LLM system prompts
+│   └── pipeline.py                     # Complete RAG orchestration
 │
-├── static/
-│   ├── css/style.css         # Glassmorphism dark/light visual design system
+├── 🚀 services/
+│   ├── user_service.py                 # User authentication & admin setup
+│   ├── document_service.py             # Document upload & processing
+│   └── chat_service.py                 # Chat sessions & queries
+│
+├── 🎨 static/
+│   ├── css/
+│   │   └── style.css                   # Glassmorphism UI design
 │   └── js/
-│       ├── app.js            # Auth state, theme, view switcher
-│       ├── chat.js           # Student chat UI controller
-│       └── admin.js          # Admin dashboard controller
+│       ├── app.js                      # Main app controller
+│       ├── chat.js                     # Student chat interface
+│       └── admin.js                    # Admin dashboard
 │
-├── templates/
-│   └── index.html            # Main single-page web app template
+├── 📋 templates/
+│   └── index.html                      # Single-page application template
 │
-└── tests/
-    ├── test_auth.py          # Unit tests for JWT & password hashing
-    ├── test_chunking.py      # Unit tests for chunking & metadata
-    ├── test_retrieval.py     # Unit tests for vector search
-    └── test_rag.py            # End-to-end RAG test suite
+└── ✅ tests/
+    ├── test_auth.py                    # Authentication tests
+    ├── test_chunking.py                # Chunking logic tests
+    ├── test_retrieval.py               # Vector search tests
+    └── test_rag.py                     # End-to-end RAG tests
 ```
 
 ---
 
-## Local Setup & Installation
+## 🚀 Quick Start
 
-### 1. Clone repository & Install dependencies
+### **Prerequisites**
+- Python 3.11+
+- pip (Python package manager)
+- Google Gemini API key (optional - has fallback)
+
+### **1. Clone & Install**
+
 ```bash
-cd RAG-BOT
+git clone https://github.com/HarshaVardhan855/RAG-Based-College-Chatbot.git
+cd RAG-Based-College-Chatbot
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
+### **2. Configure Environment**
+
 ```bash
 cp .env.example .env
 ```
-(Optional) Set your `GEMINI_API_KEY` in `.env` to connect to Google Gemini API:
-```env
-GEMINI_API_KEY="your-google-gemini-api-key"
-```
-*Note: If no API key is provided, the application automatically uses local vector embeddings and deterministic fallback response generation for offline testing.*
 
-### 3. Default Admin Credentials
-When launching the application for the first time, default administrator credentials are automatically initialized:
+Edit `.env` and add your Google Gemini API key (optional):
+```env
+GEMINI_API_KEY="your-api-key-here"
+```
+
+### **3. Run the Application**
+
+```bash
+python main.py
+```
+
+Or with Uvicorn directly:
+```bash
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+### **4. Access the Application**
+
+Open your browser and visit:
+```
+http://127.0.0.1:8000
+```
+
+### **5. Default Credentials**
+
 - **Email**: `admin@college.edu`
 - **Password**: `Admin@123`
 
 ---
 
-## Running the Application
+## 📖 Usage Guide
 
-Start the FastAPI server using Uvicorn:
+### **For Admins: Upload Documents**
 
-```bash
-python main.py
-```
-or
-```bash
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
+1. **Login** with admin credentials
+2. **Navigate to Admin Dashboard**
+3. **Click "Upload Document"**
+4. **Select** PDF, DOCX, or TXT file
+5. **Click "Process"** - system will:
+   - Extract text from document
+   - Clean and normalize content
+   - Split into semantic chunks
+   - Generate embeddings
+   - Store in vector database
+6. **View** document status and statistics
 
-Open your browser and navigate to:
-**`http://127.0.0.1:8000`**
+### **For Students: Ask Questions**
+
+1. **Access Student Chat Interface**
+2. **Type your question** about college information
+3. **Press Enter** or click Send
+4. **View AI Response** with:
+   - Direct answer grounded in college documents
+   - Source citations (Document name, page, section)
+   - Conversation history
+5. **Click Source Badges** to jump to specific document sections
+
+### **System Behavior**
+
+| Scenario | Behavior |
+|----------|----------|
+| **Question in Knowledge Base** | Returns grounded answer with source citations |
+| **Question outside Scope** | Returns: *"I couldn't find this information in the college knowledge base."* |
+| **After Document Deletion** | System stops answering questions related to deleted documents |
 
 ---
 
-## Running Automated Tests
+## 🔌 API Endpoints
 
-Run the complete test suite including the mandatory RAG end-to-end known/unknown question verification:
+### **Authentication**
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+```
+
+### **Chat Operations**
+
+```http
+POST /api/chat/query
+GET /api/chat/history
+POST /api/chat/session
+```
+
+### **Document Management (Admin Only)**
+
+```http
+POST /api/documents/upload
+GET /api/documents/list
+DELETE /api/documents/{doc_id}
+POST /api/documents/reprocess/{doc_id}
+```
+
+### **Analytics (Admin Only)**
+
+```http
+GET /api/analytics/knowledge-base
+GET /api/analytics/queries
+```
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | FastAPI, Uvicorn, Python 3.11+ |
+| **Database** | SQLite (application data) |
+| **Vector Store** | ChromaDB |
+| **Embeddings** | Google Gemini Embeddings |
+| **LLM** | Google Gemini 2.0 Flash + Grok Fallback |
+| **Document Processing** | PyMuPDF (PDF), python-docx (DOCX) |
+| **Frontend** | HTML5, CSS3, Vanilla JavaScript |
+| **UI/UX** | Glassmorphism, Dark/Light themes |
+
+---
+
+## 🧪 Testing
+
+### **Run All Tests**
 
 ```bash
 python -m pytest tests/ -v
 ```
 
+### **Run Specific Test Suite**
+
+```bash
+# Authentication tests
+python -m pytest tests/test_auth.py -v
+
+# Chunking tests
+python -m pytest tests/test_chunking.py -v
+
+# Vector retrieval tests
+python -m pytest tests/test_retrieval.py -v
+
+# End-to-end RAG tests
+python -m pytest tests/test_rag.py -v
+```
+
+### **Verify RAG End-to-End**
+
+1. Log in as admin
+2. Upload a test document
+3. Ask a question that's in the document → verify grounded answer
+4. Ask an out-of-scope question → verify rejection
+5. Delete the document → ask the question again → verify no longer answerable
+
 ---
 
-## RAG End-to-End Verification Process
+## 🔒 Security Features
 
-1. **Log in as Administrator** (`admin@college.edu` / `Admin@123`).
-2. Upload a college document (e.g. PDF/DOCX/TXT notice).
-3. Switch to **Student Chat** view.
-4. Ask a question regarding the uploaded document -> Receive exact grounded answer with source citations.
-5. Ask an out-of-scope question (e.g. *"What is the 2030 international policy?"*) -> Receive refusal: *"I couldn't find this information in the college knowledge base."*
-6. Delete the document from the Admin Dashboard -> Ask the question again -> System refrains from answering as information is no longer available.
+- ✅ **JWT Authentication**: Secure token-based auth
+- ✅ **Password Hashing**: Bcrypt password protection
+- ✅ **Role-Based Access Control**: Student vs Admin permissions
+- ✅ **Input Validation**: Pydantic models for all inputs
+- ✅ **Anti-Hallucination**: Strict system prompts prevent false info
+- ✅ **Similarity Threshold**: Only answers high-confidence queries
+
+---
+
+## 📊 Knowledge Base Analytics
+
+Admins can view:
+- 📈 Total documents uploaded
+- 📄 Total chunks in knowledge base
+- 🔍 Query statistics
+- ⏱️ Processing times
+- ❌ Failed processing attempts
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+## 🙋 Support & Questions
+
+- **Report Issues**: [GitHub Issues](https://github.com/HarshaVardhan855/RAG-Based-College-Chatbot/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/HarshaVardhan855/RAG-Based-College-Chatbot/discussions)
+
+---
+
+## 🎯 Roadmap
+
+- [ ] Multi-language support
+- [ ] Advanced analytics dashboard
+- [ ] Document versioning
+- [ ] Custom LLM model selection
+- [ ] Export chat history as PDF
+- [ ] Voice input/output support
+- [ ] Mobile app
+- [ ] Integration with college management systems
+
+---
+
+## 👤 Author
+
+**Harsha Vardhan** - [GitHub Profile](https://github.com/HarshaVardhan855)
+
+---
+
+<div align="center">
+
+**Made with ❤️ for educational institutions**
+
+⭐ If you find this helpful, please consider giving it a star!
+
+</div>
