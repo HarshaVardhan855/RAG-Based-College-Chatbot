@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Information Assistant - Grounded RAG Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-graduation-cap logo-icon"></i>
+                    <span class="logo-text">College AI</span>
+                </div>
+                <button id="themeToggle" class="icon-btn" title="Toggle Theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+
+            <!-- Student View Sidebar Controls -->
+            <div id="studentSidebar" class="sidebar-section">
+                <button id="newChatBtn" class="btn btn-primary full-width">
+                    <i class="fa-solid fa-plus"></i> New Conversation
+                </button>
+                <div class="history-label">Chat History</div>
+                <div id="chatHistoryList" class="history-list">
+                    <!-- Dynamic chat session items -->
+                </div>
+            </div>
+
+            <!-- Admin View Sidebar Controls -->
+            <div id="adminSidebar" class="sidebar-section hidden">
+                <div class="nav-menu">
+                    <button class="nav-item active" data-tab="adminDocs">
+                        <i class="fa-solid fa-folder-open"></i> Document Library
+                    </button>
+                    <button class="nav-item" data-tab="adminUpload">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload Documents
+                    </button>
+                    <button class="nav-item" data-tab="adminQueries">
+                        <i class="fa-solid fa-message"></i> Student Queries
+                    </button>
+                    <button class="nav-item" data-tab="adminStats">
+                        <i class="fa-solid fa-chart-pie"></i> Analytics
+                    </button>
+                </div>
+            </div>
+
+            <!-- User Profile & Auth Footer -->
+            <div class="sidebar-footer">
+                <div id="userInfo" class="user-info hidden">
+                    <div class="avatar" id="userAvatar">U</div>
+                    <div class="user-details">
+                        <span id="userName" class="user-name">User</span>
+                        <span id="userRoleBadge" class="role-badge">STUDENT</span>
+                    </div>
+                    <button id="logoutBtn" class="icon-btn text-danger" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+                <div id="authPrompt" class="auth-prompt">
+                    <button id="showAuthModalBtn" class="btn btn-outline full-width">
+                        <i class="fa-solid fa-user-lock"></i> Log In / Register
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="pageTitle">College Information Assistant</h1>
+                    <p id="pageSubtitle" class="subtitle">Answers strictly grounded in official college documents</p>
+                </div>
+                <div class="role-switcher" id="roleSwitcherContainer" style="display: none;">
+                    <button id="switchToStudentBtn" class="role-btn active">
+                        <i class="fa-solid fa-comments"></i> Student Chat
+                    </button>
+                    <button id="switchToAdminBtn" class="role-btn">
+                        <i class="fa-solid fa-sliders"></i> Admin Dashboard
+                    </button>
+                </div>
+            </header>
+
+            <!-- STUDENT CHAT VIEW -->
+            <section id="studentView" class="view-panel active">
+                <div class="chat-container">
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="welcome-card">
+                            <div class="welcome-icon">
+                                <i class="fa-solid fa-robot"></i>
+                            </div>
+                            <h2>Welcome to College AI Assistant</h2>
+                            <p>Ask questions regarding admissions, fee schedules, exam rules, hostels, scholarships, or academic calendars. Answers are generated using official college documents with source references.</p>
+                            <div class="sample-questions">
+                                <button class="sample-btn" data-query="What documents are required for admission?">
+                                    <i class="fa-regular fa-lightbulb"></i> Admission Documents
+                                </button>
+                                <button class="sample-btn" data-query="What is the fee payment deadline for 2026?">
+                                    <i class="fa-regular fa-calendar-check"></i> Fee Payment Deadline
+                                </button>
+                                <button class="sample-btn" data-query="What are the hostel rules and fee details?">
+                                    <i class="fa-solid fa-hotel"></i> Hostel Information
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Box -->
+                    <div class="chat-input-area">
+                        <form id="chatForm" class="chat-form">
+                            <input type="text" id="userInput" placeholder="Ask any college-related question..." autocomplete="off" required>
+                            <button type="submit" id="sendBtn" class="btn btn-send">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </form>
+                        <div class="disclaimer">
+                            <i class="fa-solid fa-shield-halved"></i> Grounded in knowledge base • Zero hallucination policy
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ADMIN DASHBOARD VIEW -->
+            <section id="adminView" class="view-panel hidden">
+                <!-- Tab 1: Document Library -->
+                <div id="adminDocsTab" class="admin-tab-content active">
+                    <div class="admin-header">
+                        <h2>Document Library</h2>
+                        <button class="btn btn-primary" onclick="switchAdminTab('adminUpload')">
+                            <i class="fa-solid fa-plus"></i> Upload New Document
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title / Filename</th>
+                                    <th>Type</th>
+                                    <th>Department</th>
+                                    <th>Category</th>
+                                    <th>Uploaded</th>
+                                    <th>Chunks</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="documentsTableBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Upload Documents -->
+                <div id="adminUploadTab" class="admin-tab-content hidden">
+                    <div class="admin-header">
+                        <h2>Upload College Document</h2>
+                    </div>
+                    <div class="card upload-card">
+                        <form id="uploadDocForm">
+                            <div class="form-group">
+                                <label for="docTitle">Document Title</label>
+                                <input type="text" id="docTitle" placeholder="e.g. Fee Notice 2026 / Hostel Guidelines" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="docDept">Department</label>
+                                    <select id="docDept">
+                                        <option value="General">General</option>
+                                        <option value="Admissions">Admissions</option>
+                                        <option value="Academics">Academics</option>
+                                        <option value="Examinations">Examinations</option>
+                                        <option value="Finance">Finance</option>
+                                        <option value="Hostel">Hostel</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="docCategory">Category</label>
+                                    <select id="docCategory">
+                                        <option value="Admissions">Admissions</option>
+                                        <option value="Fees">Fees</option>
+                                        <option value="Examinations">Examinations</option>
+                                        <option value="Hostel">Hostel</option>
+                                        <option value="Academic Calendar">Academic Calendar</option>
+                                        <option value="Placements">Placements</option>
+                                        <option value="Scholarships">Scholarships</option>
+                                        <option value="Policies">Policies</option>
+                                        <option value="General">General</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Select File (PDF, DOCX, TXT)</label>
+                                <div class="drop-zone" id="dropZone">
+                                    <i class="fa-solid fa-file-pdf drop-icon"></i>
+                                    <p>Drag & Drop file here or <span>Browse</span></p>
+                                    <input type="file" id="docFileInput" accept=".pdf,.docx,.txt" required hidden>
+                                    <span id="selectedFileName" class="file-name-preview"></span>
+                                </div>
+                            </div>
+                            <button type="submit" id="uploadSubmitBtn" class="btn btn-primary">
+                                <i class="fa-solid fa-gears"></i> Process & Store Document
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Student Queries (ADMIN ONLY) -->
+                <div id="adminQueriesTab" class="admin-tab-content hidden">
+                    <div class="admin-header">
+                        <h2><i class="fa-solid fa-message"></i> Student Queries</h2>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">All student questions submitted to the chatbot. Only visible to administrators.</p>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="queriesTable">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Question</th>
+                                    <th>Answer</th>
+                                    <th>Sources</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="queriesTableBody">
+                                <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Loading queries...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Analytics -->
+                <div id="adminStatsTab" class="admin-tab-content hidden">
+                    <div class="admin-header">
+                        <h2>Analytics Dashboard</h2>
+                    </div>
+
+                    <!-- Primary Stats Grid -->
+                    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statTotalStudents">0</span>
+                                <span class="stat-label">Total Students</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-green"><i class="fa-solid fa-user-check"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statActiveStudents">0</span>
+                                <span class="stat-label">Students Using Chatbot</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-purple"><i class="fa-solid fa-comments"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statTotalQuestions">0</span>
+                                <span class="stat-label">Total Questions Asked</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-orange"><i class="fa-solid fa-layer-group"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statTotalSessions">0</span>
+                                <span class="stat-label">Chat Sessions</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-blue"><i class="fa-solid fa-file-lines"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statTotalDocs">0</span>
+                                <span class="stat-label">Total Documents</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-green"><i class="fa-solid fa-cubes"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="statTotalChunks">0</span>
+                                <span class="stat-label">Total Vector Chunks</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question Trends (last 7 days) -->
+                    <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                        <h3 style="margin-bottom: 1rem; font-size: 1rem;"><i class="fa-solid fa-chart-line"></i> Questions — Last 7 Days</h3>
+                        <div id="trendsChart" class="trends-chart">
+                            <!-- Bar chart rendered by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Top Questions + Recent Activity side by side -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                        <div class="card" style="padding: 1.25rem;">
+                            <h3 style="margin-bottom: 1rem; font-size: 1rem;"><i class="fa-solid fa-fire"></i> Most Asked Questions</h3>
+                            <ol id="topQuestionsList" style="margin: 0; padding-left: 1.2rem; color: var(--text-muted); font-size: 0.85rem; line-height: 1.8;">
+                                <li>Loading...</li>
+                            </ol>
+                        </div>
+                        <div class="card" style="padding: 1.25rem;">
+                            <h3 style="margin-bottom: 1rem; font-size: 1rem;"><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity</h3>
+                            <div id="recentActivityList" style="font-size: 0.82rem;">
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="authModalTitle">Sign In</h3>
+                <button id="closeAuthModal" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="auth-tabs">
+                    <button id="tabLoginBtn" class="auth-tab active">Log In</button>
+                    <button id="tabRegisterBtn" class="auth-tab">Register</button>
+                </div>
+                
+                <!-- Login Form -->
+                <form id="loginForm" class="auth-form">
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="loginEmail" placeholder="student@college.edu" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary full-width">Log In</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" class="auth-form hidden">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="regFullName" placeholder="Alex Rivers" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="regEmail" placeholder="student@college.edu" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="regRole">
+                            <option value="STUDENT">Student</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="regPassword" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary full-width">Create Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
