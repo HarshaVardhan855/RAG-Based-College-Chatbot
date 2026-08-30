@@ -8,8 +8,12 @@ const state = {
     sessions: []
 };
 
+// Centralized API Base URL Configuration
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
+
 // API Helper
 async function apiRequest(url, method = 'GET', body = null, isFormData = false) {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
@@ -21,7 +25,7 @@ async function apiRequest(url, method = 'GET', body = null, isFormData = false) 
     }
 
     try {
-        const response = await fetch(url, { method, headers, body });
+        const response = await fetch(fullUrl, { method, headers, body });
         const data = await response.json();
         
         if (!response.ok) {

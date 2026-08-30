@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    ALLOWED_ORIGINS: str = "*"
     DATABASE_URL: str = "sqlite:///./college_rag.db"
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     UPLOAD_DIR: str = "./uploads"
