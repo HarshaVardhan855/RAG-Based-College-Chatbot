@@ -42,9 +42,9 @@ This project makes college policy, syllabus, and admin documents searchable and 
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────�[...]
 │                     RAG-Based College Chatbot                   │
-├─────────────────────────────────────────────────────────────────┤
+├────────────────────────────────────────────────────────────────�[...]
 │                                                                   │
 │  🖥️  PRESENTATION LAYER                                          │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -59,10 +59,10 @@ This project makes college policy, syllabus, and admin documents searchable and 
 │  🔗  API & ORCHESTRATION LAYER (Render)                          │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  FastAPI Backend (uvicorn)                               │   │
-│  │  - Authentication (JWT)                                  │   │
-│  │  - Document Management                                   │   │
-│  │  - Chat Query Handler                                    │   │
-│  │  - RAG Pipeline Orchestration                            │   │
+│  │  - Authentication (JWT)                                  │
+│  │  - Document Management                                   │
+│  │  - Chat Query Handler                                    │
+│  │  - RAG Pipeline Orchestration                            │
 │  └──────────────────────────────────────────────────────────┘   │
 │                             │                                    │
 │          ┌──────────────────┼──────────────────┐                │
@@ -75,8 +75,8 @@ This project makes college policy, syllabus, and admin documents searchable and 
 │  │          │  (Gemini/      │  (Gemini/Fallback)          │   │
 │  │ • Split  │   Fallback)    │                              │   │
 │  │ • Clean  │                │  • Prompt Engineering       │   │
-│  │ • Chunk  │ • Vector       │  • Context Assembly         │   │
-│  │          │   Generation   │  • Source Citation          │   │
+│  │ • Chunk  │                │  • Context Assembly         │   │
+│  │          │                │  • Source Citation          │   │
 │  └──────────┴────────────────┴──────────────────────────────┘   │
 │          │                  │                  │                │
 │          └──────────────────┼──────────────────┘                │
@@ -92,7 +92,7 @@ This project makes college policy, syllabus, and admin documents searchable and 
 │  │  • Access Control      │                               │   │
 │  └────────────────────────┴────────────────────────────────┘   │
 │                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────�[...]
 ```
 
 ### Student Query Flow (Step-by-Step)
@@ -207,7 +207,7 @@ RAG-Based-College-Chatbot/
 └── tests/                 # pytest suites
 ```
 
-Note: The frontend is a simple single-page app (vanilla JS) under `static/` and `templates/` and can be hosted on Vercel. The backend is FastAPI (main.py) and can be hosted on Render / other Python hosts.
+Note: The frontend is a simple single-page app (vanilla JS) under `static/` and `templates/` and can be hosted on Vercel. The backend is FastAPI (main.py) and can be hosted on Render / other Pyth[...]
 
 ---
 
@@ -232,6 +232,7 @@ cp .env.example .env
 
 Required / common env vars (see `.env.example`):
 - GEMINI_API_KEY (optional)
+- GROK_API_KEY (optional, used as fallback when Gemini rate limits or fails)
 - DATABASE_URL (if changed)
 - SECRET_KEY / JWT settings
 
@@ -244,6 +245,53 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 4. Serve frontend (open templates/index.html or configure static hosting)
 
 Open http://127.0.0.1:8000 in your browser or serve static folder with any static host.
+
+---
+
+## Fallback model behavior (Gemini → Grok)
+
+This project implements a model-provider fallback mechanism: Gemini is the primary model provider, and when a Gemini request returns a rate-limit (or other unrecoverable) error, the backend automatically attempts the same request against Grok using the GROK_API_KEY.
+
+Why this is documented
+- So maintainers know which providers are used and in what order.
+- So operators can provide the correct API keys and understand cost/rate implications.
+- So developers can test and customize the fallback behavior.
+
+Configuration
+- Environment variables (examples used by this project):
+  - GEMINI_API_KEY — primary provider key (optional)
+  - GROK_API_KEY — fallback provider key (optional)
+  - DISABLE_FALLBACK — set to `true` to disable automatic fallback (if supported by your deployment/config)
+
+Runtime behavior (high-level)
+- Attempt request to Gemini.
+- If the call succeeds, return Gemini's response.
+- If the call fails with a rate-limit or unrecoverable error, log a warning and call Grok.
+- If Grok also fails, return a friendly error to the user and log the failure for debugging.
+
+Example pseudocode (conceptual)
+```python
+def generate_answer(prompt):
+    try:
+        return call_gemini(prompt)
+    except RateLimitError:
+        logger.warning("Gemini rate limit reached; falling back to Grok")
+        try:
+            return call_grok(prompt)
+        except Exception:
+            logger.error("Both Gemini and Grok failed", exc_info=True)
+            raise RuntimeError("All model providers failed; try again later")
+```
+
+Notes and recommendations
+- Secure your API keys (do not commit them). Use a secrets manager or environment variables.
+- Monitor usage and set alerts for approaching rate limits or unexpected failures.
+- Consider exponential backoff and retries for transient errors before falling back.
+- Be explicit about costs and privacy: document that queries may be sent to third-party APIs (Gemini, Grok) and include any relevant privacy/cost warnings.
+
+Testing
+- To test fallback, temporarily invalidate or revoke the Gemini key and confirm the app uses Grok.
+- Check logs for the fallback warning and verify the final response source.
 
 ---
 
@@ -289,7 +337,7 @@ Tips:
 
 Quick talking points:
 
-- "This project is a RAG-based assistant for college docs. It ingests PDFs/DOCX/TXT, chunks & embeds them, and uses vector similarity to retrieve evidence before asking an LLM to answer — preventing hallucinations."
+- "This project is a RAG-based assistant for college docs. It ingests PDFs/DOCX/TXT, chunks & embeds them, and uses vector similarity to retrieve evidence before asking an LLM to answer — preve[...]
 - "Frontend is a lightweight SPA (HTML/CSS/Vanilla JS) deployed on Vercel; backend is FastAPI on Render. We separate concerns: UI, API, RAG pipeline, and vector store."
 - "Key safety: similarity thresholding (default 0.30) and system prompts ensure the model only answers when we have evidence."
 
