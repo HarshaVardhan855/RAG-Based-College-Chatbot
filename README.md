@@ -24,7 +24,7 @@
 
 ## Elevator pitch
 
-This project makes college policy, syllabus, and admin documents searchable and interactive for students and admins. Instead of guessing, the assistant retrieves evidence from uploaded documents, builds grounded answers with source citations, and avoids hallucination using similarity thresholds and guarded prompts. Perfect for universities, departments, or campus portals. 🎯
+This project makes college policy, syllabus, and admin documents searchable and interactive for students and admins. Instead of guessing, the assistant retrieves evidence from uploaded documents, [...]
 
 ## 🌟 Key Features
 
@@ -37,58 +37,160 @@ This project makes college policy, syllabus, and admin documents searchable and 
 
 ---
 
-## 📊 High-level Architecture (visual)
+## 📊 High-level Architecture
 
-User interacts with frontend → Frontend calls backend (FastAPI) → Backend coordinates RAG pipeline and data stores
-
-Simple flow:
+### System Overview
 
 ```
-Student/Admin (browser)  🖱️
-        │
-        ▼
-Frontend (Vercel)  ───► Backend API (Render)  ──► RAG Pipeline
-                        (FastAPI / uvicorn)           │
-                                                   ▼
-                                     ┌──────────────┬──────────────┐
-                                     │ SQLite (metadata)        │
-                                     │ ChromaDB (vectors)       │
-                                     └──────────────┴──────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     RAG-Based College Chatbot                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  🖥️  PRESENTATION LAYER                                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Student/Admin Browser Interface (HTML/CSS/JS)          │   │
+│  │  - Student Chat UI                                       │   │
+│  │  - Admin Document Management Dashboard                  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                             │                                    │
+│                             │ API Calls (HTTP/REST)             │
+│                             ▼                                    │
+│                                                                   │
+│  🔗  API & ORCHESTRATION LAYER (Render)                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  FastAPI Backend (uvicorn)                               │   │
+│  │  - Authentication (JWT)                                  │   │
+│  │  - Document Management                                   │   │
+│  │  - Chat Query Handler                                    │   │
+│  │  - RAG Pipeline Orchestration                            │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                             │                                    │
+│          ┌──────────────────┼──────────────────┐                │
+│          │                  │                  │                │
+│          ▼                  ▼                  ▼                │
+│                                                                   │
+│  🧠  RAG INTELLIGENCE LAYER                                      │
+│  ┌──────────┬────────────────┬──────────────────────────────┐   │
+│  │ Chunker  │  Embeddings    │  LLM Reasoning              │   │
+│  │          │  (Gemini/      │  (Gemini/Fallback)          │   │
+│  │ • Split  │   Fallback)    │                              │   │
+│  │ • Clean  │                │  • Prompt Engineering       │   │
+│  │ • Chunk  │ • Vector       │  • Context Assembly         │   │
+│  │          │   Generation   │  • Source Citation          │   │
+│  └──────────┴────────────────┴──────────────────────────────┘   │
+│          │                  │                  │                │
+│          └──────────────────┼──────────────────┘                │
+│                             ▼                                    │
+│                                                                   │
+│  💾 DATA & STORAGE LAYER                                         │
+│  ┌────────────────────────┬────────────────────────────────┐   │
+│  │  SQLite Database       │  ChromaDB Vector Store        │   │
+│  │  ────────────────────  │  ──────────────────────────    │   │
+│  │  • User Accounts       │  • Document Embeddings        │   │
+│  │  • Document Metadata   │  • Semantic Search Index      │   │
+│  │  • Chat History        │  • Similarity Scoring         │   │
+│  │  • Access Control      │                               │   │
+│  └────────────────────────┴────────────────────────────────┘   │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-More detailed step-by-step flow for a student question:
+### Student Query Flow (Step-by-Step)
 
-1. Student types a question in the chat UI.
-2. Frontend sends POST /api/chat/query to backend.
-3. Backend generates an embedding for the query (Gemini / fallback).
-4. Backend performs vector search in ChromaDB (Top-K, default 4).
-5. If highest similarity >= threshold (default ~0.30) → retrieve chunks and build context; else return "out of scope" message.
-6. Backend calls LLM (Gemini / fallback) with system prompt + retrieved chunks to generate grounded answer.
-7. Backend returns answer + source citations to frontend; frontend shows clickable source badges.
+```
+STEP 1: User Input
+   Student types a question in chat UI
+                │
+                ▼
+STEP 2: Frontend Request
+   POST /api/chat/query → Send question to backend
+                │
+                ▼
+STEP 3: Query Embedding
+   Backend converts question to embeddings (Gemini API / fallback)
+                │
+                ▼
+STEP 4: Vector Search
+   ChromaDB searches embeddings (Top-K results, K=4 by default)
+                │
+                ▼
+STEP 5: Similarity Check
+   ┌─ If similarity score ≥ 0.30 (threshold)  →  PROCEED
+   │
+   └─ If similarity score < 0.30               →  Return "Out of scope" message
+                │
+                ▼
+STEP 6: Context Building
+   Retrieve matching document chunks + metadata
+                │
+                ▼
+STEP 7: LLM Generation
+   Call Gemini API with:
+   • System prompt (strict grounding rules)
+   • User question
+   • Retrieved chunks (context)
+                │
+                ▼
+STEP 8: Response with Sources
+   Backend returns:
+   • Grounded answer
+   • Source citations (clickable badges)
+   • Metadata (document ID, chunk reference)
+                │
+                ▼
+STEP 9: Frontend Display
+   Show answer + interactive source links in chat UI
+```
+
+### Admin Upload & Document Processing Flow
+
+```
+STEP 1: Document Upload
+   Admin uploads file (PDF / DOCX / TXT) via dashboard
+                │
+                ▼
+STEP 2: File Type Detection
+   Backend identifies format and routes to appropriate parser
+                │
+   ┌───────────┼───────────┐
+   │           │           │
+   ▼           ▼           ▼
+  PDF       DOCX         TXT
+ (PyMuPDF)  (python-      (plain
+           docx)        read)
+   │           │           │
+   └───────────┼───────────┘
+               ▼
+STEP 3: Text Extraction
+   Extract raw text from document
+               │
+               ▼
+STEP 4: Text Cleaning
+   • Remove extra whitespace
+   • Fix encoding issues
+   • Remove metadata
+               │
+               ▼
+STEP 5: Chunking
+   Split into overlapping chunks (~500 tokens, ~100 token overlap)
+               │
+               ▼
+STEP 6: Generate Embeddings
+   Convert chunks to vector embeddings (Gemini / fallback)
+               │
+               ▼
+STEP 7: Store Results
+   ├─ ChromaDB: Save vectors + chunk text
+   └─ SQLite: Save metadata (doc_id, filename, upload_date, etc.)
+               │
+               ▼
+STEP 8: Index Complete ✅
+   Document ready for semantic queries
+```
 
 ---
 
-## 🧭 Admin upload & processing (visual)
-
-```
-Admin uploads document (PDF/DOCX/TXT)
-          │
-          ▼
-Document extraction (PyMuPDF / python-docx / plain)
-          │
-          ▼
-Text cleaner → Chunker (size ~500, overlap ~100)
-          │
-          ▼
-Embeddings (Gemini API or fallback) → Store vectors in ChromaDB + metadata in SQLite
-          │
-          ▼
-Ready for queries ✅
-```
-
----
-
-## 📁 Project structure (concise)
+## 📁 Project Structure (Concise)
 
 ```
 RAG-Based-College-Chatbot/
@@ -109,7 +211,7 @@ Note: The frontend is a simple single-page app (vanilla JS) under `static/` and 
 
 ---
 
-## 🔧 Quick start (local)
+## 🔧 Quick Start (Local)
 
 Prereqs: Python 3.11+, pip
 
@@ -155,7 +257,7 @@ python -m pytest tests/ -v
 
 ---
 
-## 🔌 API (high-level)
+## 🔌 API (High-level)
 
 - POST /api/auth/register
 - POST /api/auth/login
@@ -170,7 +272,7 @@ Refer to code in `services/` and `main.py` for implementation details.
 
 ---
 
-## 📦 Deployment notes
+## 📦 Deployment Notes
 
 You've deployed this repo with a split deployment (frontend + backend):
 
@@ -183,7 +285,7 @@ Tips:
 
 ---
 
-## ✅ Interviewer-ready summary (elevator + architecture)
+## ✅ Interviewer-Ready Summary (Elevator + Architecture)
 
 Quick talking points:
 
@@ -191,7 +293,7 @@ Quick talking points:
 - "Frontend is a lightweight SPA (HTML/CSS/Vanilla JS) deployed on Vercel; backend is FastAPI on Render. We separate concerns: UI, API, RAG pipeline, and vector store."
 - "Key safety: similarity thresholding (default 0.30) and system prompts ensure the model only answers when we have evidence."
 
-Bring these bullets and the flow chart above to interviews — they're concise and demonstrate end-to-end design thinking. ✨
+Bring these diagrams and talking points to interviews — they demonstrate end-to-end design thinking. ✨
 
 ---
 
