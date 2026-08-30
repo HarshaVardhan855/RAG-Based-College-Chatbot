@@ -1,0 +1,16 @@
+# Exclude backend Python files and database directories from Vercel static deployment
+main.py
+config.py
+run_verification.py
+requirements.txt
+runtime.txt
+pyrightconfig.json
+auth/
+database/
+documents/
+rag/
+services/
+tests/
+uploads/
+chroma_db/
+college_rag.db
