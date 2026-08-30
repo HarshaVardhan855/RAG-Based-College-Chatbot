@@ -1,14 +1,24 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "rewrites": [
+  "builds": [
     {
-      "source": "/static/(.*)",
-      "destination": "/static/$1"
+      "src": "templates/index.html",
+      "use": "@vercel/static"
     },
     {
-      "source": "/(.*)",
-      "destination": "/templates/index.html"
+      "src": "static/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/templates/index.html"
     }
   ]
 }
