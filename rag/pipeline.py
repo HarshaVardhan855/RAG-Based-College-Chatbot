@@ -6,16 +6,28 @@ from rag.prompt import build_rag_prompt
 from typing import Optional
 
 
+from rag.embeddings import _get_cached_genai_client
+import time
+
+
 def _call_gemini_llm(prompt: str) -> Optional[str]:
     """Attempts to generate content using Google Gemini API."""
     if not settings.GEMINI_API_KEY:
         return None
 
-    models_to_try = [settings.LLM_MODEL, "gemini-2.5-flash"]
-    try:
-        from google import genai
+    # De-duplicate models and filter out non-existent model names
+    primary_model = settings.LLM_MODEL
+    if "3.6" in primary_model or not primary_model:
+        primary_model = "gemini-2.5-flash"
 
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    models_to_try = [primary_model]
+    if "gemini-2.5-flash" not in models_to_try:
+        models_to_try.append("gemini-2.5-flash")
+    if "gemini-1.5-flash" not in models_to_try:
+        models_to_try.append("gemini-1.5-flash")
+
+    try:
+        client = _get_cached_genai_client(settings.GEMINI_API_KEY)
         for model_name in models_to_try:
             try:
                 response = client.models.generate_content(
@@ -26,7 +38,7 @@ def _call_gemini_llm(prompt: str) -> Optional[str]:
             except Exception as e:
                 print(f"Gemini genai LLM error ({model_name}): {e}")
     except Exception as e:
-        print(f"Gemini genai client init error: {e}")
+                print(f"Gemini genai client init error: {e}")
 
     return None
 
@@ -65,15 +77,20 @@ def run_rag_pipeline(
     question: str, db: Session, chat_history: Optional[list[dict]] = None
 ) -> dict:
     """
-    Executes complete mandatory RAG pipeline:
+    Executes complete mandatory RAG pipeline with high-precision timing breakdown:
     Question -> Query Embedding -> Vector Similarity Search -> Relevant Chunks -> Threshold Filter -> Grounded LLM Prompt -> Answer + Sources
-    LLM Generation uses multi-tiered fallback: Gemini API -> Grok API -> Offline Extractor
     """
+    t_start = time.perf_counter()
+
     # 1. Retrieve relevant document chunks
+    t_ret_start = time.perf_counter()
     retrieved_chunks = retrieve_relevant_chunks(question, db)
+    t_ret_end = time.perf_counter()
 
     # 2. Check if relevant context is available
     if not retrieved_chunks:
+        t_total = (time.perf_counter() - t_start) * 1000
+        print(f"[RAG Perf] Retrieval: {(t_ret_end - t_ret_start)*1000:.2f}ms | Total: {t_total:.2f}ms (No context found)")
         return {
             "answer": "I couldn't find this information in the college knowledge base. Please contact the appropriate college department or administrator for official updates.",
             "sources": [],
@@ -101,9 +118,12 @@ def run_rag_pipeline(
             )
 
     # 4. Build strict grounded RAG prompt
+    t_prompt_start = time.perf_counter()
     prompt = build_rag_prompt(question, retrieved_chunks, chat_history)
+    t_prompt_end = time.perf_counter()
 
     # 5. Call LLM with fallback mechanism (Gemini -> Grok -> Offline)
+    t_llm_start = time.perf_counter()
     answer_text = _call_gemini_llm(prompt)
     if not answer_text and settings.GROK_API_KEY:
         print("Gemini unavailable/rate-limited. Triggering Grok API fallback...")
@@ -112,6 +132,16 @@ def run_rag_pipeline(
     # 6. Fallback to local extractor if all external LLM APIs fail or are unconfigured
     if not answer_text:
         answer_text = _generate_offline_grounded_answer(question, retrieved_chunks)
+    t_llm_end = time.perf_counter()
+
+    t_total = (time.perf_counter() - t_start) * 1000
+    ret_ms = (t_ret_end - t_ret_start) * 1000
+    prompt_ms = (t_prompt_end - t_prompt_start) * 1000
+    llm_ms = (t_llm_end - t_llm_start) * 1000
+
+    print(
+        f"[RAG Perf] Retrieval: {ret_ms:.2f}ms | Prompt: {prompt_ms:.2f}ms | LLM: {llm_ms:.2f}ms | Total RAG: {t_total:.2f}ms"
+    )
 
     if answer_text and "couldn't find this information in the college knowledge base" in answer_text.lower():
         return {"answer": answer_text, "sources": []}

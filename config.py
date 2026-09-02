@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str = ""
     EMBEDDING_MODEL: str = "gemini-embedding-001"
-    LLM_MODEL: str = "gemini-3.6-flash"
+    LLM_MODEL: str = "gemini-2.5-flash-lite"
 
     GROK_API_KEY: str = ""
     GROK_MODEL: str = "grok-2-latest"

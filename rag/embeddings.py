@@ -84,6 +84,17 @@ STOP_WORDS = {
 }
 
 
+_genai_client_cache = {}
+
+
+def _get_cached_genai_client(api_key: str):
+    if api_key not in _genai_client_cache:
+        from google import genai
+
+        _genai_client_cache[api_key] = genai.Client(api_key=api_key)
+    return _genai_client_cache[api_key]
+
+
 def get_embedding(text: str) -> list[float]:
     """
     Generates embedding for a single text chunk or user query.
@@ -92,9 +103,7 @@ def get_embedding(text: str) -> list[float]:
     """
     if settings.GEMINI_API_KEY:
         try:
-            from google import genai
-
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            client = _get_cached_genai_client(settings.GEMINI_API_KEY)
             result = client.models.embed_content(
                 model=settings.EMBEDDING_MODEL, contents=text
             )

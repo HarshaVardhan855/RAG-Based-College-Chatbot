@@ -182,9 +182,8 @@ async function sendQuestion(question) {
     try {
         const res = await apiRequest(`/api/chat/sessions/${state.currentSessionId}/messages`, 'POST', { question });
         
-        // Remove loading bubble
-        const loadingElem = document.getElementById(loadingId);
-        if (loadingElem) loadingElem.remove();
+        // Remove loading bubble & clean timers
+        removeLoadingBubble(loadingId);
 
         // Append AI Response Bubble
         appendMessageBubble('ai', res.ai_message.message, res.ai_message.sources, res.ai_message.timestamp);
@@ -194,8 +193,7 @@ async function sendQuestion(question) {
         await loadChatHistory();
     } catch (err) {
         console.error('Failed to retrieve AI response:', err);
-        const loadingElem = document.getElementById(loadingId);
-        if (loadingElem) loadingElem.remove();
+        removeLoadingBubble(loadingId);
         appendMessageBubble('ai', 'Error processing question. Please check connection.', [], getCurrentTimeStr());
     }
 }
@@ -249,10 +247,34 @@ function appendLoadingBubble(id) {
     bubble.innerHTML = `
         <div class="msg-avatar"><i class="fa-solid fa-spinner fa-spin"></i></div>
         <div class="msg-content">
-            <span style="color: var(--text-muted); font-style: italic;">Searching vector database & generating grounded answer...</span>
+            <span id="${id}_status" style="color: var(--text-muted); font-style: italic;">Searching college knowledge base...</span>
         </div>
     `;
     container.appendChild(bubble);
+
+    // Stage status updates for transparency during cold start or slower network connections
+    const t1 = setTimeout(() => {
+        const el = document.getElementById(`${id}_status`);
+        if (el) el.innerText = 'Synthesizing grounded answer from official documents...';
+    }, 2000);
+
+    const t2 = setTimeout(() => {
+        const el = document.getElementById(`${id}_status`);
+        if (el) el.innerText = 'Connecting to backend AI service...';
+    }, 4500);
+
+    // Attach cleanup handle to element
+    bubble._timer1 = t1;
+    bubble._timer2 = t2;
+}
+
+function removeLoadingBubble(id) {
+    const elem = document.getElementById(id);
+    if (elem) {
+        if (elem._timer1) clearTimeout(elem._timer1);
+        if (elem._timer2) clearTimeout(elem._timer2);
+        elem.remove();
+    }
 }
 
 async function deleteChatSession(sessionId) {
