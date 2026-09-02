@@ -11,7 +11,19 @@ const state = {
 // Centralized API Base URL Configuration
 const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
 
-// API Helper
+// Canonical HTML Escape Function
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+// API Helper with Cold-Start Handling & Error Management
 async function apiRequest(url, method = 'GET', body = null, isFormData = false) {
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     const headers = {};
@@ -24,16 +36,52 @@ async function apiRequest(url, method = 'GET', body = null, isFormData = false) 
         body = JSON.stringify(body);
     }
 
+    // Set up a timer to alert the user if Render backend is sleeping (cold start > 3.5s)
+    let coldStartTimer = setTimeout(() => {
+        showToast('Backend server is waking up... Please wait a few seconds.', 'info');
+    }, 3500);
+
     try {
         const response = await fetch(fullUrl, { method, headers, body });
-        const data = await response.json();
+        clearTimeout(coldStartTimer);
+
+        let data;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const rawText = await response.text();
+            data = { detail: rawText || `HTTP ${response.status} ${response.statusText}` };
+        }
         
         if (!response.ok) {
-            throw new Error(data.detail || 'API request failed');
+            if (response.status === 401) {
+                // Expired or invalid token
+                state.token = null;
+                state.user = null;
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                const userInfo = document.getElementById('userInfo');
+                const authPrompt = document.getElementById('authPrompt');
+                if (userInfo) userInfo.classList.add('hidden');
+                if (authPrompt) authPrompt.classList.remove('hidden');
+            }
+            const errMsg = data.detail || (typeof data === 'string' ? data : 'API request failed');
+            console.error(`[API Error ${response.status}] ${method} ${url}:`, errMsg);
+            throw new Error(errMsg);
         }
         return data;
     } catch (err) {
-        showToast(err.message, 'error');
+        clearTimeout(coldStartTimer);
+        console.error(`[API Network/Error] ${method} ${url}:`, err);
+        
+        if (err.name === 'TypeError' && err.message.includes('fetch')) {
+            const netErr = 'Cannot connect to backend server. Please check your internet connection or backend URL.';
+            showToast(netErr, 'error');
+            throw new Error(netErr);
+        }
+        
+        showToast(err.message || 'An unexpected error occurred.', 'error');
         throw err;
     }
 }
@@ -41,20 +89,25 @@ async function apiRequest(url, method = 'GET', body = null, isFormData = false) 
 // Toast Notifications
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.innerText = message;
     
-    // style toast inline if needed
     toast.style.padding = '0.75rem 1.25rem';
     toast.style.marginBottom = '0.5rem';
     toast.style.borderRadius = '8px';
     toast.style.fontSize = '0.85rem';
     toast.style.color = '#fff';
-    toast.style.background = type === 'error' ? '#f87171' : type === 'success' ? '#4ade80' : '#38bdf8';
+    toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#22c55e' : '#3b82f6';
     
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
 // UI Setup & Init
@@ -68,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Theme Toggle
 function initTheme() {
     const toggleBtn = document.getElementById('themeToggle');
+    if (!toggleBtn) return;
     const currentTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', currentTheme);
     
@@ -79,7 +133,7 @@ function initTheme() {
     });
 }
 
-// Auth Modal
+// Auth Modal & Handlers
 function initAuthModal() {
     const modal = document.getElementById('authModal');
     const openBtn = document.getElementById('showAuthModalBtn');
@@ -88,69 +142,146 @@ function initAuthModal() {
     const regTab = document.getElementById('tabRegisterBtn');
     const loginForm = document.getElementById('loginForm');
     const regForm = document.getElementById('registerForm');
+    const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+    const regSubmitBtn = document.getElementById('regSubmitBtn');
 
-    openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    if (openBtn) openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+    if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
-    loginTab.addEventListener('click', () => {
-        loginTab.classList.add('active');
-        regTab.classList.remove('active');
-        loginForm.classList.remove('hidden');
-        regForm.classList.add('hidden');
-    });
+    if (loginTab) {
+        loginTab.addEventListener('click', () => {
+            loginTab.classList.add('active');
+            regTab.classList.remove('active');
+            loginForm.classList.remove('hidden');
+            regForm.classList.add('hidden');
+        });
+    }
 
-    regTab.addEventListener('click', () => {
-        regTab.classList.add('active');
-        loginTab.classList.remove('active');
-        regForm.classList.remove('hidden');
-        loginForm.classList.add('hidden');
-    });
+    if (regTab) {
+        regTab.addEventListener('click', () => {
+            regTab.classList.add('active');
+            loginTab.classList.remove('active');
+            regForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+        });
+    }
 
-    // Login Form Handler
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('loginEmail').value;
-        const password = document.getElementById('loginPassword').value;
-        try {
-            const data = await apiRequest('/api/auth/login', 'POST', { email, password });
-            state.token = data.access_token;
-            state.user = data.user;
-            localStorage.setItem('token', state.token);
-            localStorage.setItem('user', JSON.stringify(state.user));
+    // Login Form Handler with explicit loading state & non-silent error catching
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const emailInput = document.getElementById('loginEmail');
+            const passwordInput = document.getElementById('loginPassword');
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!email || !password) {
+                showToast('Please enter both email and password.', 'error');
+                return;
+            }
+
+            // Disable UI elements to prevent duplicate submission
+            if (loginSubmitBtn) {
+                loginSubmitBtn.disabled = true;
+                loginSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
+            }
+            emailInput.disabled = true;
+            passwordInput.disabled = true;
+
+            try {
+                const data = await apiRequest('/api/auth/login', 'POST', { email, password });
+                state.token = data.access_token;
+                state.user = data.user;
+                localStorage.setItem('token', state.token);
+                localStorage.setItem('user', JSON.stringify(state.user));
+                
+                modal.classList.add('hidden');
+                loginForm.reset();
+                await checkAuthStatus();
+                showToast('Logged in successfully!', 'success');
+            } catch (err) {
+                console.error('Login attempt failed:', err);
+                // Toast notification is already raised by apiRequest, but we log the detailed error
+            } finally {
+                // Re-enable UI elements
+                if (loginSubmitBtn) {
+                    loginSubmitBtn.disabled = false;
+                    loginSubmitBtn.innerText = 'Log In';
+                }
+                emailInput.disabled = false;
+                passwordInput.disabled = false;
+            }
+        });
+    }
+
+    // Register Form Handler with explicit loading state & non-silent error catching
+    if (regForm) {
+        regForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('regFullName');
+            const emailInput = document.getElementById('regEmail');
+            const roleSelect = document.getElementById('regRole');
+            const passwordInput = document.getElementById('regPassword');
+
+            const full_name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const role = roleSelect ? roleSelect.value : 'STUDENT';
+            const password = passwordInput.value;
+
+            if (!full_name || !email || !password) {
+                showToast('Please fill out all required fields.', 'error');
+                return;
+            }
+
+            if (regSubmitBtn) {
+                regSubmitBtn.disabled = true;
+                regSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating Account...';
+            }
+            nameInput.disabled = true;
+            emailInput.disabled = true;
+            passwordInput.disabled = true;
+
+            try {
+                await apiRequest('/api/auth/register', 'POST', { full_name, email, role, password });
+                showToast('Registration successful! Please log in.', 'success');
+                regForm.reset();
+                if (loginTab) loginTab.click();
+            } catch (err) {
+                console.error('Registration attempt failed:', err);
+            } finally {
+                if (regSubmitBtn) {
+                    regSubmitBtn.disabled = false;
+                    regSubmitBtn.innerText = 'Create Account';
+                }
+                nameInput.disabled = false;
+                emailInput.disabled = false;
+                passwordInput.disabled = false;
+            }
+        });
+    }
+
+    // Logout Handler
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            state.token = null;
+            state.user = null;
+            state.currentSessionId = null;
+            state.sessions = [];
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             
-            modal.classList.add('hidden');
+            if (typeof clearChatArea === 'function') {
+                clearChatArea();
+            }
+            
             checkAuthStatus();
-            showToast('Logged in successfully', 'success');
-        } catch (e) {}
-    });
-
-    // Register Form Handler
-    regForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const full_name = document.getElementById('regFullName').value;
-        const email = document.getElementById('regEmail').value;
-        const role = document.getElementById('regRole').value;
-        const password = document.getElementById('regPassword').value;
-
-        try {
-            await apiRequest('/api/auth/register', 'POST', { full_name, email, role, password });
-            showToast('Registration successful! Please log in.', 'success');
-            loginTab.click();
-        } catch (e) {}
-    });
-
-    // Logout
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        state.token = null;
-        state.user = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        checkAuthStatus();
-        showToast('Logged out', 'info');
-    });
+            showToast('Logged out successfully', 'info');
+        });
+    }
 }
 
-// Check Auth Status & Update UI
+// Check Auth Status & Synchronize Application State
 async function checkAuthStatus() {
     const userInfo = document.getElementById('userInfo');
     const authPrompt = document.getElementById('authPrompt');
@@ -165,34 +296,37 @@ async function checkAuthStatus() {
             state.user = user;
             localStorage.setItem('user', JSON.stringify(user));
             
-            userInfo.classList.remove('hidden');
-            authPrompt.classList.add('hidden');
-            userAvatar.innerText = user.full_name.charAt(0).toUpperCase();
-            userName.innerText = user.full_name;
-            userRoleBadge.innerText = user.role;
+            if (userInfo) userInfo.classList.remove('hidden');
+            if (authPrompt) authPrompt.classList.add('hidden');
+            if (userAvatar) userAvatar.innerText = (user.full_name || 'U').charAt(0).toUpperCase();
+            if (userName) userName.innerText = user.full_name || 'User';
+            if (userRoleBadge) userRoleBadge.innerText = user.role || 'STUDENT';
 
             if (user.role === 'ADMIN') {
-                roleSwitcher.style.display = 'flex';
+                if (roleSwitcher) roleSwitcher.style.display = 'flex';
             } else {
-                roleSwitcher.style.display = 'none';
+                if (roleSwitcher) roleSwitcher.style.display = 'none';
                 switchView('student');
             }
 
-            // Load Chat History
+            // Load Chat History for logged in student
             if (typeof loadChatHistory === 'function') {
                 loadChatHistory();
             }
         } catch (err) {
+            console.warn('Auth token verification failed:', err);
             state.token = null;
+            state.user = null;
             localStorage.removeItem('token');
-            userInfo.classList.add('hidden');
-            authPrompt.classList.remove('hidden');
-            roleSwitcher.style.display = 'none';
+            localStorage.removeItem('user');
+            if (userInfo) userInfo.classList.add('hidden');
+            if (authPrompt) authPrompt.classList.remove('hidden');
+            if (roleSwitcher) roleSwitcher.style.display = 'none';
         }
     } else {
-        userInfo.classList.add('hidden');
-        authPrompt.classList.remove('hidden');
-        roleSwitcher.style.display = 'none';
+        if (userInfo) userInfo.classList.add('hidden');
+        if (authPrompt) authPrompt.classList.remove('hidden');
+        if (roleSwitcher) roleSwitcher.style.display = 'none';
     }
 }
 
@@ -201,8 +335,8 @@ function setupRoleSwitcher() {
     const studentBtn = document.getElementById('switchToStudentBtn');
     const adminBtn = document.getElementById('switchToAdminBtn');
 
-    studentBtn.addEventListener('click', () => switchView('student'));
-    adminBtn.addEventListener('click', () => switchView('admin'));
+    if (studentBtn) studentBtn.addEventListener('click', () => switchView('student'));
+    if (adminBtn) adminBtn.addEventListener('click', () => switchView('admin'));
 }
 
 function switchView(view) {
@@ -215,19 +349,19 @@ function switchView(view) {
     const adminBtn = document.getElementById('switchToAdminBtn');
 
     if (view === 'student') {
-        studentView.classList.remove('hidden');
-        adminView.classList.add('hidden');
-        studentSidebar.classList.remove('hidden');
-        adminSidebar.classList.add('hidden');
-        studentBtn.classList.add('active');
-        adminBtn.classList.remove('active');
+        if (studentView) studentView.classList.remove('hidden');
+        if (adminView) adminView.classList.add('hidden');
+        if (studentSidebar) studentSidebar.classList.remove('hidden');
+        if (adminSidebar) adminSidebar.classList.add('hidden');
+        if (studentBtn) studentBtn.classList.add('active');
+        if (adminBtn) adminBtn.classList.remove('active');
     } else {
-        studentView.classList.add('hidden');
-        adminView.classList.remove('hidden');
-        studentSidebar.classList.add('hidden');
-        adminSidebar.classList.remove('hidden');
-        adminBtn.classList.add('active');
-        studentBtn.classList.remove('active');
+        if (studentView) studentView.classList.add('hidden');
+        if (adminView) adminView.classList.remove('hidden');
+        if (studentSidebar) studentSidebar.classList.add('hidden');
+        if (adminSidebar) adminSidebar.classList.remove('hidden');
+        if (adminBtn) adminBtn.classList.add('active');
+        if (studentBtn) studentBtn.classList.remove('active');
         
         // Refresh admin data
         if (typeof loadAdminDocuments === 'function') loadAdminDocuments();

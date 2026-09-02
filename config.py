@@ -8,7 +8,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    ALLOWED_ORIGINS: str = "*"
+    ALLOWED_ORIGINS: str = (
+        "https://rag-based-college-chatbot-two.vercel.app,"
+        "http://localhost:8001,http://127.0.0.1:8001,"
+        "http://localhost:3000,http://127.0.0.1:3000"
+    )
     DATABASE_URL: str = "sqlite:///./college_rag.db"
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     UPLOAD_DIR: str = "./uploads"

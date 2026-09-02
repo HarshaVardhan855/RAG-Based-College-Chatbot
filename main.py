@@ -32,15 +32,13 @@ app = FastAPI(
 )
 
 # Enable CORS
-origins = (
-    ["*"]
-    if settings.ALLOWED_ORIGINS.strip() == "*"
-    else [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
-)
+parsed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+is_wildcard = "*" in parsed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=parsed_origins if parsed_origins else ["*"],
+    allow_credentials=not is_wildcard,  # Spec compliant: cannot allow_credentials with wildcard '*'
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,6 +72,12 @@ class ChatMessageRequest(BaseModel):
 
 class ChatSessionCreateRequest(BaseModel):
     title: str = "New Conversation"
+
+
+# ================= HEALTH CHECK =================
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "app": settings.APP_NAME}
 
 
 # ================= AUTH ENDPOINTS =================

@@ -7,29 +7,34 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupChatListeners() {
     const chatForm = document.getElementById('chatForm');
     const newChatBtn = document.getElementById('newChatBtn');
-    const sampleBtns = document.querySelectorAll('.sample-btn');
 
-    chatForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('userInput');
-        const question = input.value.trim();
-        if (!question) return;
+    if (chatForm) {
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('userInput');
+            const question = input.value.trim();
+            if (!question) return;
 
-        input.value = '';
-        await sendQuestion(question);
-    });
+            input.value = '';
+            await sendQuestion(question);
+        });
+    }
 
-    newChatBtn.addEventListener('click', async () => {
-        await createNewChatSession();
-    });
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', async () => {
+            await createNewChatSession();
+        });
+    }
 
-    sampleBtns.forEach(btn => {
-        btn.addEventListener('click', async () => {
+    // Dynamic delegate for sample question buttons
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.sample-btn');
+        if (btn) {
             const query = btn.getAttribute('data-query');
             if (query) {
                 await sendQuestion(query);
             }
-        });
+        }
     });
 }
 
@@ -40,25 +45,43 @@ async function loadChatHistory() {
         const sessions = await apiRequest('/api/chat/sessions');
         state.sessions = sessions;
         renderHistoryList(sessions);
-    } catch (err) {}
+    } catch (err) {
+        console.error('Failed to load chat history:', err);
+    }
 }
 
 function renderHistoryList(sessions) {
     const container = document.getElementById('chatHistoryList');
+    if (!container) return;
     container.innerHTML = '';
 
-    if (sessions.length === 0) {
+    if (!sessions || sessions.length === 0) {
         container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.8rem; padding: 0.5rem;">No past chats</div>';
         return;
     }
 
+    const safeEscape = window.escapeHtml || escapeHtml;
+
     sessions.forEach(s => {
         const item = document.createElement('div');
         item.className = `chat-history-item ${s.id === state.currentSessionId ? 'active' : ''}`;
-        item.innerHTML = `
-            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"><i class="fa-regular fa-message"></i> ${escapeHtml(s.title)}</span>
-            <i class="fa-solid fa-trash text-danger" style="font-size: 0.75rem; opacity: 0.7;" onclick="event.stopPropagation(); deleteChatSession(${s.id})"></i>
-        `;
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.style.cssText = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;';
+        titleSpan.innerHTML = `<i class="fa-regular fa-message"></i> ${safeEscape(s.title)}`;
+        
+        const trashBtn = document.createElement('i');
+        trashBtn.className = 'fa-solid fa-trash text-danger';
+        trashBtn.style.cssText = 'font-size: 0.75rem; opacity: 0.7; padding: 4px; cursor: pointer;';
+        trashBtn.title = 'Delete Session';
+        
+        trashBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await deleteChatSession(s.id);
+        });
+
+        item.appendChild(titleSpan);
+        item.appendChild(trashBtn);
         item.addEventListener('click', () => loadChatSessionMessages(s.id));
         container.appendChild(item);
     });
@@ -66,7 +89,9 @@ function renderHistoryList(sessions) {
 
 async function createNewChatSession() {
     if (!state.token) {
-        document.getElementById('authModal').classList.remove('hidden');
+        showToast('Please log in to start a new chat session.', 'info');
+        const modal = document.getElementById('authModal');
+        if (modal) modal.classList.remove('hidden');
         return;
     }
     try {
@@ -74,7 +99,9 @@ async function createNewChatSession() {
         state.currentSessionId = session.id;
         clearChatArea();
         await loadChatHistory();
-    } catch (err) {}
+    } catch (err) {
+        console.error('Failed to create new chat session:', err);
+    }
 }
 
 async function loadChatSessionMessages(sessionId) {
@@ -84,11 +111,14 @@ async function loadChatSessionMessages(sessionId) {
     try {
         const data = await apiRequest(`/api/chat/sessions/${sessionId}/messages`);
         renderMessages(data.messages);
-    } catch (err) {}
+    } catch (err) {
+        console.error(`Failed to load messages for session ${sessionId}:`, err);
+    }
 }
 
 function clearChatArea() {
     const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer) return;
     messagesContainer.innerHTML = `
         <div class="welcome-card">
             <div class="welcome-icon"><i class="fa-solid fa-robot"></i></div>
@@ -100,9 +130,10 @@ function clearChatArea() {
 
 function renderMessages(messages) {
     const container = document.getElementById('chatMessages');
+    if (!container) return;
     container.innerHTML = '';
 
-    if (messages.length === 0) {
+    if (!messages || messages.length === 0) {
         clearChatArea();
         return;
     }
@@ -116,7 +147,9 @@ function renderMessages(messages) {
 
 async function sendQuestion(question) {
     if (!state.token) {
-        document.getElementById('authModal').classList.remove('hidden');
+        showToast('Please log in to chat with the AI Assistant.', 'info');
+        const modal = document.getElementById('authModal');
+        if (modal) modal.classList.remove('hidden');
         return;
     }
 
@@ -127,6 +160,7 @@ async function sendQuestion(question) {
             state.currentSessionId = session.id;
             clearChatArea();
         } catch (e) {
+            console.error('Failed to initialize session before sending question:', e);
             return;
         }
     }
@@ -157,8 +191,9 @@ async function sendQuestion(question) {
         scrollToBottom();
 
         // Refresh History
-        loadChatHistory();
+        await loadChatHistory();
     } catch (err) {
+        console.error('Failed to retrieve AI response:', err);
         const loadingElem = document.getElementById(loadingId);
         if (loadingElem) loadingElem.remove();
         appendMessageBubble('ai', 'Error processing question. Please check connection.', [], getCurrentTimeStr());
@@ -167,10 +202,13 @@ async function sendQuestion(question) {
 
 function appendMessageBubble(sender, text, sources = [], timestamp = '') {
     const container = document.getElementById('chatMessages');
+    if (!container) return;
+    
     const bubble = document.createElement('div');
     bubble.className = `message-bubble ${sender}`;
 
-    let avatarIcon = sender === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-graduation-cap"></i>';
+    const avatarIcon = sender === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-graduation-cap"></i>';
+    const safeEscape = window.escapeHtml || escapeHtml;
     
     let sourcesHtml = '';
     if (sources && sources.length > 0) {
@@ -181,8 +219,8 @@ function appendMessageBubble(sender, text, sources = [], timestamp = '') {
         sources.forEach(src => {
             sourcesHtml += `
                 <div class="source-item">
-                    <div class="source-title">📄 ${escapeHtml(src.document_name)}</div>
-                    <div class="source-detail">Page ${src.page} • Section: ${escapeHtml(src.section)}</div>
+                    <div class="source-title">📄 ${safeEscape(src.document_name)}</div>
+                    <div class="source-detail">Page ${src.page || 1} • Section: ${safeEscape(src.section || 'General')}</div>
                 </div>
             `;
         });
@@ -194,7 +232,7 @@ function appendMessageBubble(sender, text, sources = [], timestamp = '') {
         <div class="msg-content">
             <div>${formatMessageText(text)}</div>
             ${sourcesHtml}
-            <span style="font-size: 0.65rem; color: var(--text-muted); display: block; margin-top: 0.4rem; text-align: right;">${timestamp}</span>
+            <span style="font-size: 0.65rem; color: var(--text-muted); display: block; margin-top: 0.4rem; text-align: right;">${safeEscape(timestamp)}</span>
         </div>
     `;
 
@@ -203,6 +241,8 @@ function appendMessageBubble(sender, text, sources = [], timestamp = '') {
 
 function appendLoadingBubble(id) {
     const container = document.getElementById('chatMessages');
+    if (!container) return;
+    
     const bubble = document.createElement('div');
     bubble.id = id;
     bubble.className = 'message-bubble ai';
@@ -225,12 +265,17 @@ async function deleteChatSession(sessionId) {
         }
         await loadChatHistory();
         showToast('Chat session deleted', 'info');
-    } catch (err) {}
+    } catch (err) {
+        console.error(`Failed to delete session ${sessionId}:`, err);
+    }
 }
+window.deleteChatSession = deleteChatSession;
 
 function scrollToBottom() {
     const container = document.getElementById('chatMessages');
-    container.scrollTop = container.scrollHeight;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 function getCurrentTimeStr() {
@@ -238,14 +283,10 @@ function getCurrentTimeStr() {
     return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 function formatMessageText(text) {
     if (!text) return '';
-    let formatted = escapeHtml(text);
+    const safeEscape = window.escapeHtml || escapeHtml;
+    let formatted = safeEscape(text);
     formatted = formatted.replace(/\n/g, '<br>');
     return formatted;
 }

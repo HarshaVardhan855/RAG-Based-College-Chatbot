@@ -716,6 +716,45 @@ body {
 .bg-blue { background: var(--accent-blue); }
 .bg-green { background: var(--accent-green); }
 .bg-purple { background: var(--accent-purple); }
+.bg-orange { background: #f97316; }
+
+.card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-main);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 360px;
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.trends-chart {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+}
 
 .stat-info {
     display: flex;
@@ -803,3 +842,75 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* Responsive Media Queries */
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        padding: 0.85rem 1rem;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-section {
+        max-height: 150px;
+        margin-top: 0.5rem;
+    }
+
+    .main-content {
+        flex: 1;
+        height: calc(100vh - 120px);
+    }
+
+    .top-header {
+        height: auto;
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.1rem;
+    }
+
+    .role-switcher {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .chat-container {
+        height: calc(100vh - 140px);
+    }
+
+    .chat-messages {
+        padding: 1rem;
+    }
+
+    .welcome-card {
+        margin: 1rem auto;
+        padding: 1.5rem 1rem;
+    }
+
+    .message-bubble {
+        max-width: 92%;
+    }
+
+    .chat-input-area {
+        padding: 0.75rem 1rem 1rem;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+

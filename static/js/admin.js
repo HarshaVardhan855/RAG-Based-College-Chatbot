@@ -154,7 +154,10 @@ async function loadAdminDocuments() {
             `;
             tbody.appendChild(tr);
         });
-    } catch (err) {}
+    } catch (err) {
+        console.error('Failed to load admin documents:', err);
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--accent-red);">Failed to load documents from knowledge base.</td></tr>';
+    }
 }
 
 async function reprocessDoc(docId) {
@@ -163,8 +166,11 @@ async function reprocessDoc(docId) {
         await apiRequest(`/api/admin/documents/${docId}/reprocess`, 'POST');
         showToast('Document reprocessed successfully', 'success');
         loadAdminDocuments();
-    } catch (err) {}
+    } catch (err) {
+        console.error(`Failed to reprocess document ${docId}:`, err);
+    }
 }
+window.reprocessDoc = reprocessDoc;
 
 async function deleteDoc(docId) {
     if (!confirm('Are you sure you want to delete this document from the knowledge base? This action cannot be undone.')) return;
@@ -172,8 +178,11 @@ async function deleteDoc(docId) {
         await apiRequest(`/api/admin/documents/${docId}`, 'DELETE');
         showToast('Document deleted from knowledge base', 'info');
         loadAdminDocuments();
-    } catch (err) {}
+    } catch (err) {
+        console.error(`Failed to delete document ${docId}:`, err);
+    }
 }
+window.deleteDoc = deleteDoc;
 
 // ─── Student Queries (Admin-Only) ─────────────────────────────────────────────
 
@@ -314,12 +323,4 @@ function renderRecentActivity(activity) {
     `).join('');
 }
 
-// Helper (shared with chat.js)
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
+// Shared escapeHtml is provided by app.js via window.escapeHtml
